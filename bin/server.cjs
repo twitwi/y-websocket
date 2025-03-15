@@ -67,7 +67,7 @@ server.on('upgrade', (request, socket, head) => {
   const urlObject = new URL('https://example.com'+url)
   const t = urlObject.searchParams.get('t') ?? ''
   console.log("token:", t, tokens, t in tokens)
-  if (!t || !(t in tokens)) return error()
+  if (!(t in tokens)) return error()
   let access = undefined
   for (const [regex, mode] of Object.entries(tokens[t])) {
     const re = new RegExp(regex)
