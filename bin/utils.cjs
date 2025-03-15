@@ -201,12 +201,11 @@ const readSyncMessageWithReadOnly = (syncProtocol, decoder, encoder, doc, transa
  * @param {WSSharedDoc} doc
  * @param {Uint8Array} message
  */
-const messageListener = (conn, doc, message) => {
+const messageListener = (readOnly) => (conn, doc, message) => {
   try {
     const encoder = encoding.createEncoder()
     const decoder = decoding.createDecoder(message)
     const messageType = decoding.readVarUint(decoder)
-    const readOnly = conn.readOnly ?? false
     console.log('Received message type:', messageType, conn.readOnly, readOnly)
     switch (messageType) {
       case messageSync:
@@ -285,7 +284,7 @@ exports.setupWSConnection = (conn, req, { docName = (req.url || '').slice(1).spl
   const doc = getYDoc(docName, gc)
   doc.conns.set(conn, new Set())
   // listen and reply to events
-  conn.on('message', /** @param {ArrayBuffer} message */ message => messageListener(conn, doc, new Uint8Array(message)))
+  conn.on('message', /** @param {ArrayBuffer} message */ message => messageListener(readOnly)(conn, doc, new Uint8Array(message)))
 
   console.log('Connection established', docName, doc.conns.size, readOnly)
 

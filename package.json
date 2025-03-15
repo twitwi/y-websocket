@@ -61,7 +61,9 @@
   "dependencies": {
     "lib0": "^0.2.52",
     "lodash.debounce": "^4.0.8",
-    "y-protocols": "^1.0.5"
+    "y-protocols": "^1.0.5",
+    "yaml": "^2.7.0",
+    "zod": "^3.24.2"
   },
   "devDependencies": {
     "@types/lodash.debounce": "^4.0.9",

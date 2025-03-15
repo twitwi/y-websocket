@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 
 const WebSocket = require('ws')
+const fs = require('fs')
+const YAML = require('yaml')
+const { z } = require('zod')
 const http = require('http')
 const number = require('lib0/number')
 const wss = new WebSocket.Server({ noServer: true })
@@ -18,19 +21,35 @@ wss.on('connection', (conn, req, readOnly) => {
   return setupWSConnection(conn, req, { readOnly })
 })
 
-const tokens = new Map()
+const zToken = z.string()
+const zAccessType = z.union([z.literal('read'), z.literal('write'), z.literal('denied')])
+//const zCheck = z.record(zAccessType).refine((checks) => Object.keys(checks).length === 1, '')
+//const zTokenMap = z.record(z.array(zCheck))
+const zTokenMap = z.record(z.string(), z.record(zAccessType)) // token -> regexp -> mode
+
+
+let tokens = {} // token -> regexp(ordered) -> mode
+
+function loadTokens(path='tokens.yaml', returnTokens=false) {
+  const file = fs.readFileSync(path, 'utf8')
+  const res = zTokenMap.parse(YAML.parse(file))
+  if (returnTokens) return res
+  tokens = res
+}
+loadTokens()
+
 // Map<token, Array<['read'|'write', regex]>>
 // first match wins
 // empty key for no-token
 // empty regexp for match all
 // all paths start with /
 // don't forget ^ and $ in relevant
-tokens.set('', [
-  ['read', '^/labhc-velo-count$'],
-  ['read', '']
-])
-tokens.set('publicos', [['read', '.*']])
-tokens.set('typst', [['read', ''], ['write', '^/.*\.typ(|st)$']])
+/////////tokens.set('', [
+/////////  ['read', '^/labhc-velo-count$'],
+/////////  ['read', '']
+/////////])
+/////////tokens.set('publicos', [['read', '.*']])
+/////////tokens.set('typst', [['read', ''], ['write', '^/.*\.typ(|st)$']])
 
 server.on('upgrade', (request, socket, head) => {
 
@@ -45,19 +64,21 @@ server.on('upgrade', (request, socket, head) => {
   // See https://github.com/websockets/ws#client-authentication
   const { url } = request
   if (url === undefined) return error()
-  const t = new URL('https://example.com'+url).searchParams.get('t') ?? ''
-  if (!t || !tokens.has(t)) return error()
+  const urlObject = new URL('https://example.com'+url)
+  const t = urlObject.searchParams.get('t') ?? ''
+  console.log("token:", t, tokens, t in tokens)
+  if (!t || !(t in tokens)) return error()
   let access = undefined
-  for (const [mode, regex] of tokens.get(t)) {
+  for (const [regex, mode] of Object.entries(tokens[t])) {
     const re = new RegExp(regex)
-    const match = re.test(url)
-    //console.log("regex:", regex, "/// url:", url, "/// =>", match, match && mode)
+    const match = re.test(urlObject.pathname)
+    console.log("regex:", regex, "/// url:", urlObject.pathname, "/// =>", match, match && mode)
     if (match) {
       access = mode
       break
     }
   }
-  if (!access) return error()
+  if (!access || access === 'denied') return error()
   
   wss.handleUpgrade(request, socket, head, /** @param {any} ws */ ws => {
     wss.emit('connection', ws, request, access !== 'write')
