@@ -1,0 +1,4 @@
+'':
+  '^/public/': read
+'publicwriter':
+  '^/public/': write
